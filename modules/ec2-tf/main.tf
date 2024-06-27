@@ -1,11 +1,49 @@
-provider "aws" {
-  region = "us-east-1" # Cambia esto a tu región preferida
+resource "aws_instance" "web" {
+  ami           = "ami-01b799c439fd5516a" # AMI de Amazon Linux 2
+  instance_type = var.environment == "prod" ? "t2.medium" : "t2.micro"
+  key_name      = "vockey" # Cambia esto al nombre de tu par de claves SSH
+  subnet_id     = element(var.subnet_ids, 0)
+  vpc_security_group_ids = [aws_security_group.web_sg.id]
+  associate_public_ip_address = true  # Asegúrate de que la instancia tenga una IP pública
+
+  provisioner "file" {
+    source      = "${path.module}/install_apache.sh"
+    destination = "/tmp/install_apache.sh"
+    connection {
+      type        = "ssh"
+      user        = "ec2-user"
+      private_key = file("${path.module}/ssh.pem") # Ruta correcta al archivo ssh.pem
+      host        = self.public_ip
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/install_apache.sh",
+      "sudo /tmp/install_apache.sh"
+    ]
+    connection {
+      type        = "ssh"
+      user        = "ec2-user"
+      private_key = file("${path.module}/ssh.pem")
+      host        = self.public_ip
+    }
+  }
+
+  tags = {
+    Name = "WebServer"
+  }
+
+  root_block_device {
+    volume_size = var.environment == "prod" ? 50 : 20
+    volume_type = "gp2"
+  }
 }
 
-# Security Group
 resource "aws_security_group" "web_sg" {
-  name        = "web_sg"
+  name        = "web_sg_${var.unique_suffix}"  # Usa el sufijo único
   description = "Allow HTTP and SSH traffic"
+  vpc_id      = var.vpc_id
 
   ingress {
     from_port   = 22
@@ -29,40 +67,6 @@ resource "aws_security_group" "web_sg" {
   }
 }
 
-# EC2 Instance
-resource "aws_instance" "web" {
-  ami           = "ami-01b799c439fd5516a" # AMI de Amazon Linux 2
-  instance_type = "t2.micro"
-  key_name      = "vockey" # Cambia esto al nombre de tu par de claves SSH
-
-  tags = {
-    Name = "WebServer"
-  }
-
-  # Define el Security Group para permitir tráfico HTTP y SSH
-  vpc_security_group_ids = [aws_security_group.web_sg.id]
-
-  provisioner "file" {
-    source      = "./install_apache.sh"
-    destination = "/tmp/install_apache.sh"
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/install_apache.sh",
-      "sudo /tmp/install_apache.sh"
-    ]
-  }
-
-  connection {
-    type        = "ssh"
-    user        = "ec2-user"
-    private_key = file("ssh.pem") # Ruta a tu clave privada
-    host        = self.public_ip
-  }
-}
-
-# Output de la IP pública
-output "public_ip" {
+output "instance_public_ip" {
   value = aws_instance.web.public_ip
 }

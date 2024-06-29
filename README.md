@@ -2,19 +2,19 @@
 
 ## Introducción
 
-En esta práctica avanzada, aprenderás a usar los provisioners `file` y `remote-exec` en Terraform para añadir y ejecutar scripts en una instancia de EC2 en AWS. Configurarás un servidor web como ejemplo práctico.
+En esta práctica avanzada, aprenderás a utilizar los provisioners "file" y "remote-exec" en Terraform para añadir y ejecutar scripts en una instancia de EC2 en AWS. Configurarás un servidor web como ejemplo práctico, aprendiendo a gestionar la infraestructura como código de forma eficiente y automatizada.
 
-## Sección 1: Instalación y Uso de los Provisioners `file` y `remote-exec`
+## Sección 1: Instalación y Uso de los Provisioners "file" y "remote-exec"
 
 ### Requisitos Previos
 
-1. Tener una cuenta de AWS.
-2. Instalar Terraform en tu máquina local.
-3. Configurar AWS CLI con tus credenciales de AWS.
+1. **Cuenta de AWS:** Necesitarás una cuenta activa de AWS.
+2. **Instalar Terraform:** Asegúrate de tener Terraform instalado en tu máquina local. Puedes seguir las instrucciones de instalación desde la [documentación oficial de Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli).
+3. **Configurar AWS CLI:** Configura AWS CLI con tus credenciales de AWS para permitir que Terraform interactúe con tu cuenta de AWS. Puedes seguir las instrucciones de configuración desde la [documentación oficial de AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html).
 
 ### Paso 1: Crear un Archivo de Configuración de Terraform
 
-Crea un directorio para tu proyecto de Terraform y dentro de él un archivo llamado `main.tf`.
+Primero, crea un directorio para tu proyecto de Terraform y dentro de él un archivo llamado `main.tf`.
 
 ```bash
 mkdir terraform-ec2
@@ -24,7 +24,7 @@ touch main.tf
 
 ### Paso 2: Configurar el Proveedor de AWS
 
-En el archivo `main.tf`, añade la configuración del proveedor de AWS.
+En el archivo `main.tf`, añade la configuración del proveedor de AWS para que Terraform sepa con qué proveedor está interactuando.
 
 ```hcl
 provider "aws" {
@@ -34,7 +34,7 @@ provider "aws" {
 
 ### Paso 3: Crear una Instancia de EC2
 
-Añade la configuración para crear una instancia de EC2. Asegúrate de que tienes un par de claves SSH creado en AWS para acceder a la instancia.
+Añade la configuración necesaria para crear una instancia de EC2. Asegúrate de que tienes un par de claves SSH creado en AWS para acceder a la instancia.
 
 ```hcl
 resource "aws_instance" "web" {
@@ -49,11 +49,13 @@ resource "aws_instance" "web" {
   # Define el Security Group para permitir tráfico HTTP y SSH
   vpc_security_group_ids = [aws_security_group.web_sg.id]
 
+  # Provisioner "file" para copiar el script a la instancia
   provisioner "file" {
     source      = "install_apache.sh"
     destination = "/tmp/install_apache.sh"
   }
 
+  # Provisioner "remote-exec" para ejecutar el script en la instancia
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/install_apache.sh",
@@ -61,6 +63,7 @@ resource "aws_instance" "web" {
     ]
   }
 
+  # Configuración de la conexión SSH
   connection {
     type        = "ssh"
     user        = "ec2-user"
@@ -104,7 +107,7 @@ resource "aws_security_group" "web_sg" {
 
 ### Paso 5: Crear el Script de Instalación de Apache
 
-Crea un archivo llamado `install_apache.sh` en el mismo directorio.
+Crea un archivo llamado `install_apache.sh` en el mismo directorio del proyecto.
 
 ```bash
 touch install_apache.sh
@@ -128,14 +131,29 @@ echo "<html><h1>Hola desde Terraform!</h1></html>" | sudo tee /var/www/html/inde
 
 ### Paso 6: Obtener la Clave SSH Privada
 
-Obten la clave SSH privada del laboratorio y pega el contenido en un archivo llamado `ssh.pem` en la ruta raíz del proyecto de Terraform.
+Obtén la clave SSH privada del laboratorio y pega el contenido en un archivo llamado `ssh.pem` en la ruta raíz del proyecto de Terraform. Asegúrate de que los permisos del archivo sean seguros.
+
+```bash
+chmod 400 ssh.pem
+```
 
 ### Paso 7: Inicializar y Aplicar la Configuración de Terraform
 
-Inicializa tu proyecto de Terraform y aplica la configuración.
+Inicializa tu proyecto de Terraform, lo que prepara tu directorio de trabajo para usar Terraform.
 
 ```bash
 terraform init
+```
+
+Revisa el plan de ejecución para ver qué recursos serán creados.
+
+```bash
+terraform plan
+```
+
+Aplica la configuración para crear los recursos definidos.
+
+```bash
 terraform apply
 ```
 
@@ -143,19 +161,19 @@ Confirma la aplicación cuando se te solicite (escribe `yes` y presiona Enter).
 
 ### Verificación
 
-Una vez que la aplicación se complete, obtendrás la dirección IP pública de la instancia de EC2. Puedes verificar que Apache está instalado y funcionando accediendo a esta dirección IP en tu navegador. Para obtener la IP pública automáticamente, añade un output en Terraform:
+Una vez que la aplicación se complete, obtendrás la dirección IP pública de la instancia de EC2. Puedes verificar que Apache está instalado y funcionando accediendo a esta dirección IP en tu navegador. Para facilitar esto, crea un output en Terraform que entregue la IP pública de la instancia.
 
 ```hcl
-output "public_ip" {
+output "instance_ip" {
   value = aws_instance.web.public_ip
 }
 ```
 
-## Sección 2: Creación de un VPC con Subredes Condicionales
+## PRACTICA 2: Creación de un VPC con Subredes Condicionales
 
-### Paso 1: Añadir el Recurso VPC
+### Añadir el Recurso VPC
 
-Añade la configuración para crear un VPC.
+Añade la configuración para crear una VPC.
 
 ```hcl
 resource "aws_vpc" "main" {
@@ -163,9 +181,9 @@ resource "aws_vpc" "main" {
 }
 ```
 
-### Paso 2: Añadir Subredes Utilizando Expresiones Condicionales
+### Añadir Subredes Utilizando Expresiones Condicionales
 
-Define una variable de entorno y configura subredes condicionalmente.
+Define una variable para el entorno y usa expresiones condicionales para crear subredes.
 
 ```hcl
 variable "environment" {
@@ -187,7 +205,7 @@ data "aws_availability_zones" "available" {
 }
 ```
 
-### Paso 3: Aplicación de Operadores y Llamadas a Funciones
+### Aplicación de Operadores y Llamadas a Funciones
 
 Crea un recurso de grupo de seguridad con reglas basadas en operadores.
 
@@ -213,13 +231,12 @@ resource "aws_security_group" "allow_tls" {
 }
 ```
 
-Usa funciones y operadores en las configuraciones.
+Usa funciones y operadores en las configuraciones de la instancia.
 
 ```hcl
 resource "aws_instance" "app" {
-  ami           = "ami-01b799c439fd5516a" # Amazon Linux 2 AMI
-  instance_type = var.environment == "prod" ? "t2.medium" : "t2.micro"
-
+  ami                    = "ami-01b799c439fd5516a" # Amazon Linux 2 AMI
+  instance_type          = var.environment == "prod" ? "t2.medium" : "t2.micro"
   subnet_id              = element(aws_subnet.subnet[*].id, 0)
   vpc_security_group_ids = [aws_security_group.allow_tls.id]
 
@@ -234,7 +251,7 @@ resource "aws_instance" "app" {
 }
 ```
 
-### Paso 4: Uso de Expresiones For y Splat
+### Uso de Expresiones For y Splat
 
 Crea una lista de nombres de subredes utilizando `for`.
 
@@ -256,7 +273,7 @@ output "subnet_ids" {
 }
 ```
 
-### Paso 5: Ejecución de la Configuración de Terraform
+### Ejecución de la Configuración de Terraform
 
 Inicializa Terraform.
 
@@ -274,4 +291,10 @@ Aplica el plan.
 
 ```bash
 terraform apply
+
+
 ```
+
+Confirma la aplicación cuando se te solicite (escribe `yes` y presiona Enter).
+
+Con esto concluye la práctica avanzada de Terraform. Has aprendido a usar provisioners, crear VPCs con subredes condicionales, y aplicar operadores y funciones avanzadas en tus configuraciones de Terraform.

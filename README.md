@@ -1,34 +1,23 @@
-
 # Práctica Avanzada de Terraform 2
 
-## Sección 1: Creación de Recursos en AWS utilizando Funciones Avanzadas
+## Creación de Recursos en AWS utilizando Funciones Avanzadas
 
-En esta práctica, vamos a utilizar Terraform para crear varios recursos en AWS y aplicar diversas funciones avanzadas de Terraform para manipular datos y configurar nuestros recursos.
+En esta práctica, vamos a crear una serie de recursos en AWS utilizando Terraform. Aplicaremos varias funciones avanzadas de Terraform para manipular datos y configurar nuestros recursos.
 
-### Paso 1: Configuración Inicial
+Las funciones que utilizaremos son:
 
-#### 1.1 Instalación de Terraform
+- Funciones numéricas (`min`)
+- Funciones de cadena (`join`)
+- Funciones de fecha y hora (`formatdate`)
+- Funciones de red IP (`cidrsubnet`)
 
-Asegúrate de tener Terraform instalado. Puedes seguir las instrucciones oficiales en la [documentación de Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli).
+## Paso 1: Definición de Variables y Backend
 
-### Paso 2: Creación del Proyecto Terraform
+### 1.1. Definir Variables
 
-#### 2.1 Estructura del Proyecto
+Para facilitar la gestión y reutilización de valores en nuestro proyecto, utilizaremos variables. Crea un archivo llamado `variables.tf` donde definiremos estas variables.
 
-Crea un directorio para tu proyecto de Terraform:
-
-```bash
-mkdir terraform-aws-practice
-cd terraform-aws-practice
-```
-
-Dentro de este directorio, crea un archivo `main.tf` donde definiremos nuestros recursos.
-
-### Paso 3: Definición de Variables y Backend
-
-#### 3.1 Definir Variables
-
-Crea un archivo `variables.tf` para definir las variables que utilizaremos:
+Abre `variables.tf` y añade las siguientes definiciones:
 
 ```hcl
 provider "aws" {
@@ -48,16 +37,21 @@ variable "vpc_cidr" {
 }
 ```
 
-### Paso 4: Crear Recursos Utilizando Funciones Avanzadas
+- **`provider "aws"`**: Especifica el proveedor de infraestructura, en este caso AWS, y la región en la que se crearán los recursos.
+- **`variable "prefix"`**: Variable para definir un prefijo común que se utilizará en los nombres de los recursos.
+- **`variable "vpc_cidr"`**: Variable para definir el rango de direcciones IP (CIDR) para la VPC.
 
-#### 4.1 Función Numérica - `min`
+## Paso 2: Crear Recursos Utilizando Funciones Avanzadas
 
-Utilizaremos la función `min` para determinar el número mínimo de subnets a crear:
+### 2.1. Función Numérica - `min`
+
+La función `min` se utiliza para encontrar el valor mínimo entre los valores dados. En este caso, la utilizaremos para determinar el número mínimo de subnets a crear.
+
+Crea un archivo `main.tf` y añade lo siguiente:
 
 ```hcl
 resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
-
   tags = {
     Name = "${var.prefix}-vpc"
   }
@@ -68,21 +62,25 @@ locals {
 }
 
 resource "aws_subnet" "subnets" {
-  count = local.subnet_count
-
+  count             = local.subnet_count
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone = element(data.aws_availability_zones.available.names, count.index)
-
   tags = {
     Name = "${var.prefix}-subnet-${count.index}"
   }
 }
 ```
 
-#### 4.2 Función de Cadena - `join`
+- **`resource "aws_vpc" "main"`**: Crea una VPC con el rango de direcciones IP especificado en `var.vpc_cidr`.
+- **`locals { subnet_count = min(2, 3, 4) }`**: Define una variable local que contiene el valor mínimo entre 2, 3 y 4.
+- **`resource "aws_subnet" "subnets"`**: Crea subnets en la VPC. El número de subnets creadas es determinado por `local.subnet_count`.
 
-Utilizaremos la función `join` para crear un nombre concatenado para nuestros recursos:
+### 2.2. Función de Cadena - `join`
+
+La función `join` concatena una lista de cadenas en una sola cadena, separadas por un delimitador especificado. Utilizaremos esta función para crear una salida que contenga una lista de IDs de subnets separadas por comas.
+
+Añade al final de `main.tf`:
 
 ```hcl
 output "vpc_id" {
@@ -90,19 +88,23 @@ output "vpc_id" {
 }
 
 output "subnet_ids" {
-  value = join(", ", aws_subnet.subnets.*.id)
+  value = join(", ", aws_subnet.subnets[*].id)
 }
 ```
 
-#### 4.3 Función de Fecha y Hora - `formatdate`
+- **`output "vpc_id"`**: Muestra el ID de la VPC creada.
+- **`output "subnet_ids"`**: Muestra los IDs de las subnets creadas, concatenados en una sola cadena separada por comas.
 
-Usaremos `formatdate` para crear una etiqueta con la fecha y hora actual en un formato específico:
+### 2.3. Función de Fecha y Hora - `formatdate`
+
+La función `formatdate` formatea una marca de tiempo (timestamp) en una cadena de fecha y hora específica. Utilizaremos esta función para etiquetar una instancia con la fecha y hora actuales.
+
+Añade al final de `main.tf`:
 
 ```hcl
 resource "aws_instance" "web" {
   ami           = "ami-01b799c439fd5516a"
   instance_type = "t2.micro"
-
   tags = {
     Name      = "${var.prefix}-instance"
     CreatedAt = formatdate("YYYY-MM-DD hh:mm:ss", timestamp())
@@ -110,50 +112,56 @@ resource "aws_instance" "web" {
 }
 ```
 
-#### 4.4 Función de Red IP - `cidrsubnet`
+- **`resource "aws_instance" "web"`**: Crea una instancia EC2 con el AMI y tipo de instancia especificados.
+- **`tags`**: Añade etiquetas a la instancia, incluyendo una etiqueta `CreatedAt` con la fecha y hora actuales.
 
-Utilizaremos `cidrsubnet` para calcular subnets adicionales dentro de nuestra VPC:
+### 2.4. Función de Red IP - `cidrsubnet`
+
+La función `cidrsubnet` calcula subnets adicionales dentro de un bloque CIDR existente. Utilizaremos esta función para crear subnets adicionales en nuestra VPC.
+
+Añade al final de `main.tf`:
 
 ```hcl
 resource "aws_subnet" "additional_subnets" {
-  count = 2
-
+  count             = 2
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 3)
   availability_zone = element(data.aws_availability_zones.available.names, count.index + 3)
-
   tags = {
     Name = "${var.prefix}-additional-subnet-${count.index}"
   }
 }
 ```
 
-### Paso 5: Implementación y Verificación
+- **`resource "aws_subnet" "additional_subnets"`**: Crea subnets adicionales en la VPC. El rango de direcciones IP de cada subnet se calcula usando `cidrsubnet`.
 
-#### 5.1 Inicializar el Proyecto
+## Paso 3: Implementación y Verificación
 
-Inicializa tu proyecto de Terraform:
+### 3.1. Inicializar el Proyecto
 
-```bash
+Para inicializar tu proyecto de Terraform y descargar los plugins necesarios, ejecuta:
+
+```sh
 terraform init
 ```
 
-#### 5.2 Planificar la Infraestructura
+### 3.2. Planificar la Infraestructura
 
-Crea un plan para tu infraestructura:
+Antes de aplicar la configuración, es una buena práctica crear un plan para revisar los cambios que se harán en tu infraestructura. Ejecuta:
 
-```bash
+```sh
 terraform plan
 ```
 
-#### 5.3 Aplicar la Configuración
+Este comando mostrará un resumen de los recursos que se crearán, actualizarán o eliminarán.
 
-Aplica la configuración para crear los recursos en AWS:
+### 3.3. Aplicar la Configuración
 
-```bash
+Finalmente, aplica la configuración para crear los recursos en AWS:
+
+```sh
 terraform apply
 ```
 
----
+Terraform te pedirá confirmación antes de aplicar los cambios. Escribe `yes` para confirmar.
 
-Este README proporciona una guía detallada sobre cómo utilizar Terraform para crear recursos en AWS, haciendo uso de funciones avanzadas para la manipulación de datos y configuración de recursos. Asegúrate de ajustar las configuraciones y variables según tus necesidades específicas antes de aplicar la configuración en tu entorno AWS.
